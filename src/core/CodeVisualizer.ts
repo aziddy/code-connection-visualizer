@@ -775,4 +775,251 @@ export class CodeVisualizer {
     public getSelectedConnection(): ConnectionLine | null {
         return this.selectedConnection;
     }
+
+    // Export functionality
+    public exportAsPNG(filename: string = 'code-visualization'): void {
+        // Create a temporary canvas with the current content
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.canvas.width;
+        tempCanvas.height = this.canvas.height;
+        const tempCtx = tempCanvas.getContext('2d')!;
+        
+        // Fill with background color
+        tempCtx.fillStyle = '#1e1e1e';
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        
+        // Copy the current canvas content
+        tempCtx.drawImage(this.canvas, 0, 0);
+        
+        // Create download link
+        tempCanvas.toBlob((blob) => {
+            if (blob) {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${filename}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                console.log(`PNG exported as ${filename}.png`);
+            }
+        }, 'image/png');
+    }
+
+    public exportAsSVG(filename: string = 'code-visualization'): void {
+        const svgContent = this.generateSVG();
+        const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${filename}.svg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        console.log(`SVG exported as ${filename}.svg`);
+    }
+
+    public exportAsPDF(filename: string = 'code-visualization'): void {
+        // Dynamic import for jsPDF to avoid bundling issues
+        import('jspdf').then(({ jsPDF }) => {
+            // Create a high-resolution canvas for PDF
+            const tempCanvas = document.createElement('canvas');
+            const scale = 2; // Higher resolution for PDF
+            tempCanvas.width = this.canvas.width * scale;
+            tempCanvas.height = this.canvas.height * scale;
+            const tempCtx = tempCanvas.getContext('2d')!;
+            
+            // Scale context for high-resolution rendering
+            tempCtx.scale(scale, scale);
+            tempCtx.fillStyle = '#1e1e1e';
+            tempCtx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            
+            // Re-render everything at higher resolution
+            this.renderToContext(tempCtx);
+            
+            // Convert canvas to image and add to PDF
+            const imgData = tempCanvas.toDataURL('image/png');
+            
+            // Calculate PDF dimensions (A4 landscape)
+            const pdf = new jsPDF('landscape', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            
+            // Calculate image dimensions to fit page
+            const canvasAspectRatio = tempCanvas.width / tempCanvas.height;
+            const pageAspectRatio = pageWidth / pageHeight;
+            
+            let imgWidth, imgHeight;
+            if (canvasAspectRatio > pageAspectRatio) {
+                // Canvas is wider relative to page
+                imgWidth = pageWidth - 20; // 10mm margin on each side
+                imgHeight = imgWidth / canvasAspectRatio;
+            } else {
+                // Canvas is taller relative to page
+                imgHeight = pageHeight - 20; // 10mm margin on top/bottom
+                imgWidth = imgHeight * canvasAspectRatio;
+            }
+            
+            // Center image on page
+            const x = (pageWidth - imgWidth) / 2;
+            const y = (pageHeight - imgHeight) / 2;
+            
+            // Add image to PDF
+            pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+            
+            // Save PDF
+            pdf.save(`${filename}.pdf`);
+            console.log(`PDF exported as ${filename}.pdf`);
+        }).catch(error => {
+            console.error('Failed to load jsPDF:', error);
+            // Fallback to high-res PNG
+            const tempCanvas = document.createElement('canvas');
+            const scale = 2;
+            tempCanvas.width = this.canvas.width * scale;
+            tempCanvas.height = this.canvas.height * scale;
+            const tempCtx = tempCanvas.getContext('2d')!;
+            
+            tempCtx.scale(scale, scale);
+            tempCtx.fillStyle = '#1e1e1e';
+            tempCtx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.renderToContext(tempCtx);
+            
+            tempCanvas.toBlob((blob) => {
+                if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${filename}-hires.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    console.log(`Fallback: High-res PNG exported as ${filename}-hires.png`);
+                }
+            }, 'image/png');
+        });
+    }
+
+    private generateSVG(): string {
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+        
+        let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+        svg += `<rect width="100%" height="100%" fill="#1e1e1e"/>`;
+        
+        // Add file backgrounds and borders
+        for (const [fileId, codeFile] of this.codeFiles) {
+            const layout = this.fileLayouts.get(fileId);
+            if (layout && layout.visible) {
+                svg += this.generateFileSVG(codeFile, layout);
+            }
+        }
+        
+        // Add connections
+        for (const connection of this.connectionLines) {
+            svg += this.generateConnectionSVG(connection);
+        }
+        
+        svg += '</svg>';
+        return svg;
+    }
+
+    private generateFileSVG(codeFile: CodeFile, layout: FileLayout): string {
+        let svg = '';
+        
+        // File background
+        svg += `<rect x="${layout.x}" y="${layout.y}" width="${layout.width}" height="${layout.height}" fill="#1e1e1e" stroke="#3e3e42" stroke-width="1"/>`;
+        
+        // File name
+        svg += `<text x="${layout.x + 5}" y="${layout.y + 17}" font-family="Consolas, Monaco, monospace" font-size="12" fill="#cccccc">${this.escapeXML(codeFile.name)}</text>`;
+        
+        // Code text
+        const textStartX = layout.x + 10;
+        const textStartY = layout.y + 35;
+        const lineHeight = 20; // Approximate line height
+        
+        for (let lineIndex = 0; lineIndex < Math.min(codeFile.lines.length, 30); lineIndex++) {
+            const line = codeFile.lines[lineIndex];
+            const y = textStartY + lineIndex * lineHeight;
+            
+            svg += `<text x="${textStartX}" y="${y}" font-family="Consolas, Monaco, monospace" font-size="14" fill="#d4d4d4">${this.escapeXML(line)}</text>`;
+        }
+        
+        return svg;
+    }
+
+    private generateConnectionSVG(connection: ConnectionLine): string {
+        const startBounds = this.getSelectionBounds(connection.start);
+        const endBounds = this.getSelectionBounds(connection.end);
+        
+        if (!startBounds || !endBounds) return '';
+        
+        const startX = startBounds.x + startBounds.width / 2;
+        const startY = startBounds.y + startBounds.height / 2;
+        const endX = endBounds.x + endBounds.width / 2;
+        const endY = endBounds.y + endBounds.height / 2;
+        
+        const controlOffset = Math.abs(endY - startY) * 0.5;
+        
+        let svg = '';
+        
+        // Connection line
+        const dashArray = connection.style === 'dotted' ? '2,4' : connection.style === 'dashed' ? '8,4' : 'none';
+        const strokeDashArray = dashArray !== 'none' ? ` stroke-dasharray="${dashArray}"` : '';
+        
+        svg += `<path d="M ${startX} ${startY} C ${startX + controlOffset} ${startY}, ${endX - controlOffset} ${endY}, ${endX} ${endY}" stroke="${connection.color}" stroke-width="${connection.width}" fill="none"${strokeDashArray}/>`;
+        
+        // Arrow
+        const angle = Math.atan2(endY - startY, endX - startX);
+        const arrowLength = 10;
+        
+        const arrowX1 = endX - arrowLength * Math.cos(angle - Math.PI / 6);
+        const arrowY1 = endY - arrowLength * Math.sin(angle - Math.PI / 6);
+        const arrowX2 = endX - arrowLength * Math.cos(angle + Math.PI / 6);
+        const arrowY2 = endY - arrowLength * Math.sin(angle + Math.PI / 6);
+        
+        svg += `<polygon points="${endX},${endY} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}" fill="${connection.color}"/>`;
+        
+        // Label
+        if (connection.label) {
+            const labelX = (startX + endX) / 2;
+            const labelY = (startY + endY) / 2;
+            
+            svg += `<rect x="${labelX - 50}" y="${labelY - 10}" width="100" height="20" fill="rgba(30,30,30,0.9)" stroke="${connection.color}" stroke-width="1"/>`;
+            svg += `<text x="${labelX}" y="${labelY + 4}" font-family="Consolas, Monaco, monospace" font-size="12" fill="white" text-anchor="middle">${this.escapeXML(connection.label)}</text>`;
+        }
+        
+        return svg;
+    }
+
+    private renderToContext(ctx: CanvasRenderingContext2D): void {
+        // This method re-renders everything to a given context (for high-res export)
+        const originalCtx = this.ctx;
+        this.ctx = ctx;
+        
+        // Re-render all files
+        for (const [fileId, codeFile] of this.codeFiles) {
+            const layout = this.fileLayouts.get(fileId);
+            if (layout && layout.visible) {
+                this.textRenderer.renderFileText(codeFile, layout);
+            }
+        }
+        
+        // Re-render connections
+        this.renderConnectionLines();
+        
+        // Restore original context
+        this.ctx = originalCtx;
+    }
+
+    private escapeXML(text: string): string {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
 } 

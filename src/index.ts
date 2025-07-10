@@ -42,6 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const editConnectionLabel = document.getElementById('editConnectionLabel') as HTMLInputElement;
     const applyConnectionChanges = document.getElementById('applyConnectionChanges') as HTMLButtonElement;
     const deleteConnection = document.getElementById('deleteConnection') as HTMLButtonElement;
+    
+    // Export elements
+    const exportFilename = document.getElementById('exportFilename') as HTMLInputElement;
+    const exportPNG = document.getElementById('exportPNG') as HTMLButtonElement;
+    const exportSVG = document.getElementById('exportSVG') as HTMLButtonElement;
+    const exportPDF = document.getElementById('exportPDF') as HTMLButtonElement;
 
     if (!canvas) {
         console.error('Canvas element not found');
@@ -57,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lineColorPicker, lineStyleSelect, connectionLabel,
         connectionEditor, connectionInfo, editConnectionColor, editConnectionStyle,
         editConnectionWidth, editConnectionWidthLabel, editConnectionLabel,
-        applyConnectionChanges, deleteConnection
+        applyConnectionChanges, deleteConnection, exportFilename, exportPNG, exportSVG, exportPDF
     };
     
     for (const [name, element] of Object.entries(elements)) {
@@ -225,6 +231,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function hideConnectionEditor(): void {
         connectionEditor.style.display = 'none';
     }
+
+    // Export event handlers
+    exportPNG.addEventListener('click', () => {
+        const filename = exportFilename.value.trim() || 'code-visualization';
+        visualizer.exportAsPNG(filename);
+    });
+
+    exportSVG.addEventListener('click', () => {
+        const filename = exportFilename.value.trim() || 'code-visualization';
+        visualizer.exportAsSVG(filename);
+    });
+
+    exportPDF.addEventListener('click', () => {
+        const filename = exportFilename.value.trim() || 'code-visualization';
+        visualizer.exportAsPDF(filename);
+    });
 
     // Set default code examples
     codeInput1.value = `function fibonacci(n) {

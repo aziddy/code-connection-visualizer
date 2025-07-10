@@ -143,14 +143,18 @@ npm run watch
 ### Planned Features (in order of priority)
 
 - [x] **Multi-File Support**: Connect across different files
-- [ ] **Advanced Connection Types**: Dotted, dashed line styles
-- [ ] **Connection Labels**: Add text labels to connections
-- [ ] **Change Connections**: Ability to Select, Edit Color/Stroke, Delete Connections
+- [x] **Advanced Connection Types**: Dotted, dashed line styles
+- [x] **Connection Labels**: Add text labels to connections
+- [x] **Change Connections**: Ability to Select, Edit Color/Stroke/Style/Label, Delete Connections
+- [x] **Export Options**: Save Canvas as SVG, PNG, or PDF
+- [ ] **Floating Prompt Window**: Add a floating prompt window to the canvas that allows for both quick connection creation and editing
 - [ ] **Control-F Substring Connect**: Option to form connections to other char/substring that matched the current selection
-- [ ] **Export Options**: Save Canvas as SVG, PNG, or PDF
 - [ ] **Additional Syntax Highlighting 1**: Add for C and Devicetree (.dts, .dtsi, .overlay)
 - [ ] **Code Folding**: Collapse/expand code sections  
 - [ ] **Minimap**: Overview panel for large files
+- [ ] **Save/Load ProjectFiles**: Add the option to save and load project files 
+  - Save and load current project state - All Code (their position, syntax, and keeping their formatting), Connections (color, style, label, etc)) and whatever else is needed to restore the project to the same state
+  - Probably in JSON format
 
 
 - [ ] **Zoom and Pan**: Navigate large codebases
