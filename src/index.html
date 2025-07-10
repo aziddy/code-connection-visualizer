@@ -30,18 +30,24 @@
             background-color: #252526;
             padding: 20px;
             border-right: 1px solid #3e3e42;
+            overflow-y: auto;
+            flex-shrink: 0;
         }
 
         .canvas-container {
             flex: 1;
             position: relative;
             overflow: hidden;
+            min-height: 100vh;
+            background-color: #1e1e1e;
         }
 
         #canvas {
             display: block;
             background-color: #1e1e1e;
             cursor: text;
+            width: 100%;
+            height: 100%;
         }
 
         .controls {
@@ -78,20 +84,6 @@
     <div class="container">
         <div class="sidebar">
             <div class="controls">
-                <h3>Language</h3>
-                <select id="languageSelect">
-                    <option value="auto">Auto Detect</option>
-                    <option value="javascript">JavaScript</option>
-                    <option value="typescript">TypeScript</option>
-                    <option value="python">Python</option>
-                    <option value="java">Java</option>
-                    <option value="cpp">C++</option>
-                    <option value="html">HTML</option>
-                    <option value="css">CSS</option>
-                </select>
-            </div>
-
-            <div class="controls">
                 <h3>Font Settings</h3>
                 <input type="range" id="fontSizeSlider" min="12" max="24" value="14">
                 <label for="fontSizeSlider">Font Size: <span id="fontSizeLabel">14px</span></label>
@@ -104,20 +96,65 @@
             </div>
 
             <div class="controls">
-                <h3>Sample Code</h3>
-                <textarea id="codeInput" rows="10"
-                    style="width: 100%; background-color: #3c3c3c; border: 1px solid #5a5a5a; color: #d4d4d4; padding: 8px; font-family: inherit;">function fibonacci(n) {
-    if (n <= 1) {
-        return n;
-    }
-    return fibonacci(n - 1) + fibonacci(n - 2);
-}
+                <h3>File 1</h3>
+                <input type="text" id="fileName1" value="main.js" placeholder="File name">
+                <select id="languageSelect1">
+                    <option value="auto">Auto Detect</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="python">Python</option>
+                    <option value="java">Java</option>
+                    <option value="cpp">C++</option>
+                    <option value="html">HTML</option>
+                    <option value="css">CSS</option>
+                </select>
+                <textarea id="codeInput1" rows="6" style="width: 100%; background-color: #3c3c3c; border: 1px solid #5a5a5a; color: #d4d4d4; padding: 8px; font-family: inherit;" placeholder="Enter JavaScript code here..."></textarea>
+                <button id="loadCode1"
+                    style="width: 100%; padding: 8px; margin-top: 10px; background-color: #0e639c; border: none; color: white; border-radius: 4px; cursor: pointer;">Load File 1</button>
+            </div>
 
-const result = fibonacci(10);
-console.log(result);</textarea>
-                <button id="loadCode"
-                    style="width: 100%; padding: 8px; margin-top: 10px; background-color: #0e639c; border: none; color: white; border-radius: 4px; cursor: pointer;">Load
-                    Code</button>
+            <div class="controls">
+                <h3>File 2</h3>
+                <input type="text" id="fileName2" value="utils.py" placeholder="File name">
+                <select id="languageSelect2">
+                    <option value="auto">Auto Detect</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="python" selected>Python</option>
+                    <option value="java">Java</option>
+                    <option value="cpp">C++</option>
+                    <option value="html">HTML</option>
+                    <option value="css">CSS</option>
+                </select>
+                <textarea id="codeInput2" rows="6" style="width: 100%; background-color: #3c3c3c; border: 1px solid #5a5a5a; color: #d4d4d4; padding: 8px; font-family: inherit;" placeholder="Enter Python code here..."></textarea>
+                <button id="loadCode2"
+                    style="width: 100%; padding: 8px; margin-top: 10px; background-color: #0e639c; border: none; color: white; border-radius: 4px; cursor: pointer;">Load File 2</button>
+            </div>
+
+            <div class="controls">
+                <h3>File 3</h3>
+                <input type="text" id="fileName3" value="styles.css" placeholder="File name">
+                <select id="languageSelect3">
+                    <option value="auto">Auto Detect</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="python">Python</option>
+                    <option value="java">Java</option>
+                    <option value="cpp">C++</option>
+                    <option value="html">HTML</option>
+                    <option value="css" selected>CSS</option>
+                </select>
+                <textarea id="codeInput3" rows="6" style="width: 100%; background-color: #3c3c3c; border: 1px solid #5a5a5a; color: #d4d4d4; padding: 8px; font-family: inherit;" placeholder="Enter CSS code here..."></textarea>
+                <button id="loadCode3"
+                    style="width: 100%; padding: 8px; margin-top: 10px; background-color: #0e639c; border: none; color: white; border-radius: 4px; cursor: pointer;">Load File 3</button>
+            </div>
+
+            <div class="controls">
+                <h3>File Management</h3>
+                <button id="loadAllFiles"
+                    style="width: 100%; padding: 8px; margin-bottom: 10px; background-color: #28a745; border: none; color: white; border-radius: 4px; cursor: pointer;">Load All Files</button>
+                <button id="clearAllFiles"
+                    style="width: 100%; padding: 8px; background-color: #dc3545; border: none; color: white; border-radius: 4px; cursor: pointer;">Clear All Files</button>
             </div>
         </div>
 

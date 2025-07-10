@@ -5,7 +5,8 @@ import {
     TextSelection,
     ConnectionLine,
     SupportedLanguage,
-    TextStyle
+    CodeFile,
+    FileLayout
 } from '../types/index';
 
 export class CodeVisualizer {
@@ -14,12 +15,12 @@ export class CodeVisualizer {
     private textRenderer: TextRenderer;
     private syntaxHighlighter: SyntaxHighlighter;
 
-    // State
-    private codeLines: string[] = [];
-    private currentLanguage: SupportedLanguage = 'javascript';
-    private syntaxStyles: TextStyle[][] = [];
+    // Multi-file state
+    private codeFiles: Map<string, CodeFile> = new Map();
+    private fileLayouts: Map<string, FileLayout> = new Map();
     private connectionLines: ConnectionLine[] = [];
     private defaultLineColor: string = '#007acc';
+    private activeFileId: string | null = null;
 
     // Interaction state
     private isSelecting: boolean = false;
@@ -64,11 +65,12 @@ export class CodeVisualizer {
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
 
-        const char = this.textRenderer.getCharacterAt(x, y);
-        if (char) {
+        const result = this.getCharacterAtPosition(x, y);
+        if (result) {
             this.isSelecting = true;
-            this.selectionStart = char;
-            this.selectionEnd = char;
+            this.selectionStart = result.char;
+            this.selectionEnd = result.char;
+            this.activeFileId = result.fileId;
             this.updateSelection();
         }
     }
@@ -80,9 +82,9 @@ export class CodeVisualizer {
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
 
-        const char = this.textRenderer.getCharacterAt(x, y);
-        if (char) {
-            this.selectionEnd = char;
+        const result = this.getCharacterAtPosition(x, y);
+        if (result && result.fileId === this.activeFileId) {
+            this.selectionEnd = result.char;
             this.updateSelection();
         }
     }
@@ -128,7 +130,7 @@ export class CodeVisualizer {
     }
 
     private updateSelection(): void {
-        if (!this.selectionStart || !this.selectionEnd) return;
+        if (!this.selectionStart || !this.selectionEnd || !this.activeFileId) return;
 
         // Determine selection bounds
         const startLine = Math.min(this.selectionStart.lineIndex, this.selectionEnd.lineIndex);
@@ -153,7 +155,8 @@ export class CodeVisualizer {
             startCharIndex: startChar,
             endCharIndex: endChar,
             startLine: startLine,
-            endLine: endLine
+            endLine: endLine,
+            fileId: this.activeFileId
         };
 
         this.render();
@@ -162,7 +165,8 @@ export class CodeVisualizer {
     private finalizeSelection(): void {
         if (this.currentSelection) {
             this.pendingSelection = { ...this.currentSelection };
-            console.log(`Selected: Line ${this.currentSelection.startLine + 1}, Char ${this.currentSelection.startCharIndex} to Line ${this.currentSelection.endLine + 1}, Char ${this.currentSelection.endCharIndex}`);
+            const fileName = this.codeFiles.get(this.currentSelection.fileId!)?.name || 'Unknown';
+            console.log(`Selected in ${fileName}: Line ${this.currentSelection.startLine + 1}, Char ${this.currentSelection.startCharIndex} to Line ${this.currentSelection.endLine + 1}, Char ${this.currentSelection.endCharIndex}`);
 
             if (this.isCreatingConnection) {
                 console.log('Now select the end point and press C to create connection.');
@@ -176,7 +180,7 @@ export class CodeVisualizer {
 
     private createConnection(start: TextSelection, end: TextSelection): void {
         const connection: ConnectionLine = {
-            id: `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: `conn_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
             start: { ...start },
             end: { ...end },
             color: this.defaultLineColor,
@@ -186,16 +190,39 @@ export class CodeVisualizer {
         this.connectionLines.push(connection);
         this.render();
 
-        console.log(`Connection created between Line ${start.startLine + 1} and Line ${end.startLine + 1}`);
+        const startFile = this.codeFiles.get(start.fileId!)?.name || 'Unknown';
+        const endFile = this.codeFiles.get(end.fileId!)?.name || 'Unknown';
+        console.log(`Connection created between ${startFile}:${start.startLine + 1} and ${endFile}:${end.startLine + 1}`);
     }
 
-    public loadCode(code: string, language?: SupportedLanguage): void {
-        this.codeLines = code.split('\n');
-        this.currentLanguage = language || this.syntaxHighlighter.detectLanguage(code);
-        this.syntaxStyles = this.syntaxHighlighter.highlight(code, this.currentLanguage);
+    public loadCodeFile(id: string, name: string, code: string, language?: SupportedLanguage): void {
+        console.log(`CodeVisualizer.loadCodeFile called: ${id}, ${name}, code length: ${code.length}`);
+        
+        const detectedLanguage = language || this.syntaxHighlighter.detectLanguage(code);
+        const lines = code.split('\n');
+        const syntaxStyles = this.syntaxHighlighter.highlight(code, detectedLanguage);
+
+        const codeFile: CodeFile = {
+            id,
+            name,
+            content: code,
+            language: detectedLanguage,
+            lines,
+            syntaxStyles
+        };
+
+        this.codeFiles.set(id, codeFile);
+        console.log(`Files now loaded: ${Array.from(this.codeFiles.keys()).join(', ')}`);
+        
+        this.updateFileLayouts();
         this.render();
 
-        console.log(`Code loaded with ${this.codeLines.length} lines (${this.currentLanguage})`);
+        console.log(`Code file '${name}' loaded with ${lines.length} lines (${detectedLanguage})`);
+    }
+
+    // Legacy method for backward compatibility
+    public loadCode(code: string, language?: SupportedLanguage): void {
+        this.loadCodeFile('file1', 'Main File', code, language);
     }
 
     public setFontSize(size: number): void {
@@ -208,47 +235,69 @@ export class CodeVisualizer {
     }
 
     public handleResize(): void {
+        this.updateFileLayouts();
         this.render();
     }
 
     private render(): void {
+        console.log(`Rendering ${this.codeFiles.size} files`);
+        
         // Clear canvas
         this.textRenderer.clear();
 
-        // Render syntax-highlighted text
-        this.textRenderer.renderText(this.codeLines, this.syntaxStyles);
+        // Render all code files
+        for (const [fileId, codeFile] of this.codeFiles) {
+            const layout = this.fileLayouts.get(fileId);
+            console.log(`File ${fileId}: layout exists=${!!layout}, visible=${layout?.visible}`);
+            if (layout && layout.visible) {
+                console.log(`Rendering file ${fileId} at position (${layout.x}, ${layout.y})`);
+                this.textRenderer.renderFileText(codeFile, layout);
+            }
+        }
 
         // Render current selection highlight
         if (this.currentSelection) {
-            this.textRenderer.highlightSelection(
-                this.currentSelection.startLine,
-                this.currentSelection.startCharIndex,
-                this.currentSelection.endLine,
-                this.currentSelection.endCharIndex,
-                'rgba(0, 122, 204, 0.3)'
-            );
+            const layout = this.fileLayouts.get(this.currentSelection.fileId!);
+            if (layout) {
+                this.textRenderer.highlightSelectionInFile(
+                    layout,
+                    this.currentSelection.startLine,
+                    this.currentSelection.startCharIndex,
+                    this.currentSelection.endLine,
+                    this.currentSelection.endCharIndex,
+                    'rgba(0, 122, 204, 0.3)'
+                );
+            }
         }
 
         // Render pending selection highlight (different color)
         if (this.pendingSelection && !this.currentSelection) {
-            this.textRenderer.highlightSelection(
-                this.pendingSelection.startLine,
-                this.pendingSelection.startCharIndex,
-                this.pendingSelection.endLine,
-                this.pendingSelection.endCharIndex,
-                this.isCreatingConnection ? 'rgba(255, 193, 7, 0.3)' : 'rgba(40, 167, 69, 0.3)'
-            );
+            const layout = this.fileLayouts.get(this.pendingSelection.fileId!);
+            if (layout) {
+                this.textRenderer.highlightSelectionInFile(
+                    layout,
+                    this.pendingSelection.startLine,
+                    this.pendingSelection.startCharIndex,
+                    this.pendingSelection.endLine,
+                    this.pendingSelection.endCharIndex,
+                    this.isCreatingConnection ? 'rgba(255, 193, 7, 0.3)' : 'rgba(40, 167, 69, 0.3)'
+                );
+            }
         }
 
         // Render first selection highlight when creating connection
         if (this.firstSelection && this.isCreatingConnection) {
-            this.textRenderer.highlightSelection(
-                this.firstSelection.startLine,
-                this.firstSelection.startCharIndex,
-                this.firstSelection.endLine,
-                this.firstSelection.endCharIndex,
-                'rgba(220, 53, 69, 0.3)'
-            );
+            const layout = this.fileLayouts.get(this.firstSelection.fileId!);
+            if (layout) {
+                this.textRenderer.highlightSelectionInFile(
+                    layout,
+                    this.firstSelection.startLine,
+                    this.firstSelection.startCharIndex,
+                    this.firstSelection.endLine,
+                    this.firstSelection.endCharIndex,
+                    'rgba(220, 53, 69, 0.3)'
+                );
+            }
         }
 
         // Render connection lines
@@ -321,8 +370,13 @@ export class CodeVisualizer {
     }
 
     private getSelectionBounds(selection: TextSelection): { x: number, y: number, width: number, height: number } | null {
-        const startBounds = this.textRenderer.getCharacterBounds(selection.startLine, selection.startCharIndex);
-        const endBounds = this.textRenderer.getCharacterBounds(selection.endLine, selection.endCharIndex);
+        if (!selection.fileId) return null;
+        
+        const layout = this.fileLayouts.get(selection.fileId);
+        if (!layout) return null;
+
+        const startBounds = this.textRenderer.getCharacterBoundsInFile(layout, selection.startLine, selection.startCharIndex);
+        const endBounds = this.textRenderer.getCharacterBoundsInFile(layout, selection.endLine, selection.endCharIndex);
 
         if (!startBounds || !endBounds) return null;
 
@@ -361,5 +415,109 @@ export class CodeVisualizer {
         } catch (error) {
             console.error('Failed to import connections:', error);
         }
+    }
+
+    // Multi-file specific methods
+    private updateFileLayouts(): void {
+        const files = Array.from(this.codeFiles.values());
+        const canvasWidth = this.canvas.width;
+        const canvasHeight = this.canvas.height;
+        
+        console.log(`updateFileLayouts: ${files.length} files, canvas: ${canvasWidth}x${canvasHeight}`);
+        
+        if (files.length === 0) {
+            console.log('No files to layout');
+            return;
+        }
+
+        // Calculate layout based on number of files
+        if (files.length === 1) {
+            this.fileLayouts.set(files[0].id, {
+                id: files[0].id,
+                x: 0,
+                y: 0,
+                width: canvasWidth,
+                height: canvasHeight,
+                visible: true
+            });
+        } else if (files.length === 2) {
+            // Side by side layout
+            const width = canvasWidth / 2;
+            this.fileLayouts.set(files[0].id, {
+                id: files[0].id,
+                x: 0,
+                y: 0,
+                width: width - 10,
+                height: canvasHeight,
+                visible: true
+            });
+            this.fileLayouts.set(files[1].id, {
+                id: files[1].id,
+                x: width + 10,
+                y: 0,
+                width: width - 10,
+                height: canvasHeight,
+                visible: true
+            });
+        } else if (files.length === 3) {
+            // 2 top, 1 bottom layout
+            const width = canvasWidth / 2;
+            const height = canvasHeight / 2;
+            this.fileLayouts.set(files[0].id, {
+                id: files[0].id,
+                x: 0,
+                y: 0,
+                width: width - 5,
+                height: height - 5,
+                visible: true
+            });
+            this.fileLayouts.set(files[1].id, {
+                id: files[1].id,
+                x: width + 5,
+                y: 0,
+                width: width - 5,
+                height: height - 5,
+                visible: true
+            });
+            this.fileLayouts.set(files[2].id, {
+                id: files[2].id,
+                x: canvasWidth / 4,
+                y: height + 5,
+                width: canvasWidth / 2,
+                height: height - 5,
+                visible: true
+            });
+        }
+    }
+
+    private getCharacterAtPosition(x: number, y: number): { char: CharacterBounds; fileId: string } | null {
+        for (const [fileId, layout] of this.fileLayouts) {
+            if (layout.visible && 
+                x >= layout.x && x <= layout.x + layout.width &&
+                y >= layout.y && y <= layout.y + layout.height) {
+                const char = this.textRenderer.getCharacterAtInFile(layout, x, y);
+                if (char) {
+                    return { char, fileId };
+                }
+            }
+        }
+        return null;
+    }
+
+    public removeCodeFile(id: string): void {
+        this.codeFiles.delete(id);
+        this.fileLayouts.delete(id);
+        
+        // Remove connections involving this file
+        this.connectionLines = this.connectionLines.filter(
+            conn => conn.start.fileId !== id && conn.end.fileId !== id
+        );
+        
+        this.updateFileLayouts();
+        this.render();
+    }
+
+    public getCodeFiles(): CodeFile[] {
+        return Array.from(this.codeFiles.values());
     }
 } 

@@ -58,6 +58,7 @@ export interface TextSelection {
     endCharIndex: number;
     startLine: number;
     endLine: number;
+    fileId?: string; // Add optional fileId to support multi-file selections
 }
 
 export interface ConnectionLine {
@@ -66,6 +67,25 @@ export interface ConnectionLine {
     end: TextSelection;
     color: string;
     width: number;
+}
+
+// Multi-file support types
+export interface CodeFile {
+    id: string;
+    name: string;
+    content: string;
+    language: SupportedLanguage;
+    lines: string[];
+    syntaxStyles: TextStyle[][];
+}
+
+export interface FileLayout {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    visible: boolean;
 }
 
 // Renderer state
