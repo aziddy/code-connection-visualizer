@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Connect Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .sidebar {
+            width: 300px;
+            background-color: #252526;
+            padding: 20px;
+            border-right: 1px solid #3e3e42;
+        }
+
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #canvas {
+            display: block;
+            background-color: #1e1e1e;
+            cursor: text;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        .controls h3 {
+            margin-bottom: 10px;
+            color: #cccccc;
+        }
+
+        .controls input,
+        .controls select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background-color: #3c3c3c;
+            border: 1px solid #5a5a5a;
+            color: #d4d4d4;
+            border-radius: 4px;
+        }
+
+        .status {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: #858585;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="controls">
+                <h3>Language</h3>
+                <select id="languageSelect">
+                    <option value="auto">Auto Detect</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="python">Python</option>
+                    <option value="java">Java</option>
+                    <option value="cpp">C++</option>
+                    <option value="html">HTML</option>
+                    <option value="css">CSS</option>
+                </select>
+            </div>
+
+            <div class="controls">
+                <h3>Font Settings</h3>
+                <input type="range" id="fontSizeSlider" min="12" max="24" value="14">
+                <label for="fontSizeSlider">Font Size: <span id="fontSizeLabel">14px</span></label>
+            </div>
+
+            <div class="controls">
+                <h3>Connection Line</h3>
+                <input type="color" id="lineColorPicker" value="#007acc">
+                <label for="lineColorPicker">Line Color</label>
+            </div>
+
+            <div class="controls">
+                <h3>Sample Code</h3>
+                <textarea id="codeInput" rows="10"
+                    style="width: 100%; background-color: #3c3c3c; border: 1px solid #5a5a5a; color: #d4d4d4; padding: 8px; font-family: inherit;">function fibonacci(n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+const result = fibonacci(10);
+console.log(result);</textarea>
+                <button id="loadCode"
+                    style="width: 100%; padding: 8px; margin-top: 10px; background-color: #0e639c; border: none; color: white; border-radius: 4px; cursor: pointer;">Load
+                    Code</button>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="canvas"></canvas>
+            <div class="status">
+                Ready - Click and drag to select text sequences
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
