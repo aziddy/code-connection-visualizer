@@ -6,7 +6,8 @@ import {
     ConnectionLine,
     SupportedLanguage,
     CodeFile,
-    FileLayout
+    FileLayout,
+    LineStyle
 } from '../types/index';
 
 export class CodeVisualizer {
@@ -20,6 +21,8 @@ export class CodeVisualizer {
     private fileLayouts: Map<string, FileLayout> = new Map();
     private connectionLines: ConnectionLine[] = [];
     private defaultLineColor: string = '#007acc';
+    private defaultLineStyle: LineStyle = 'solid';
+    private defaultConnectionLabel: string = '';
     private activeFileId: string | null = null;
 
     // Interaction state
@@ -32,6 +35,9 @@ export class CodeVisualizer {
     // Connection creation state
     private firstSelection: TextSelection | null = null;
     private isCreatingConnection: boolean = false;
+    
+    // Connection editing state
+    private selectedConnection: ConnectionLine | null = null;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
@@ -65,6 +71,15 @@ export class CodeVisualizer {
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
 
+        // Check if clicking on a connection line first
+        const clickedConnection = this.getConnectionAtPosition(x, y);
+        if (clickedConnection) {
+            this.selectConnection(clickedConnection);
+            return;
+        }
+
+        // If not clicking on a connection, handle text selection
+        this.clearConnectionSelection();
         const result = this.getCharacterAtPosition(x, y);
         if (result) {
             this.isSelecting = true;
@@ -121,11 +136,17 @@ export class CodeVisualizer {
             console.log('Connection creation cancelled.');
         }
 
-        // Press 'Delete' to clear all connections
+        // Press 'Delete' to clear all connections or delete selected connection
         if (event.key === 'Delete') {
-            this.connectionLines = [];
-            this.render();
-            console.log('All connections cleared.');
+            if (this.selectedConnection) {
+                // Delete only the selected connection
+                this.deleteSelectedConnection();
+            } else {
+                // Delete all connections if none selected
+                this.connectionLines = [];
+                this.render();
+                console.log('All connections cleared.');
+            }
         }
     }
 
@@ -184,7 +205,9 @@ export class CodeVisualizer {
             start: { ...start },
             end: { ...end },
             color: this.defaultLineColor,
-            width: 2
+            width: 2,
+            style: this.defaultLineStyle,
+            label: this.defaultConnectionLabel || undefined
         };
 
         this.connectionLines.push(connection);
@@ -192,7 +215,8 @@ export class CodeVisualizer {
 
         const startFile = this.codeFiles.get(start.fileId!)?.name || 'Unknown';
         const endFile = this.codeFiles.get(end.fileId!)?.name || 'Unknown';
-        console.log(`Connection created between ${startFile}:${start.startLine + 1} and ${endFile}:${end.startLine + 1}`);
+        const labelText = connection.label ? ` with label "${connection.label}"` : '';
+        console.log(`Connection created between ${startFile}:${start.startLine + 1} and ${endFile}:${end.startLine + 1}${labelText} (${connection.style} style)`);
     }
 
     public loadCodeFile(id: string, name: string, code: string, language?: SupportedLanguage): void {
@@ -232,6 +256,14 @@ export class CodeVisualizer {
 
     public setDefaultLineColor(color: string): void {
         this.defaultLineColor = color;
+    }
+
+    public setDefaultLineStyle(style: LineStyle): void {
+        this.defaultLineStyle = style;
+    }
+
+    public setDefaultConnectionLabel(label: string): void {
+        this.defaultConnectionLabel = label;
     }
 
     public handleResize(): void {
@@ -306,11 +338,12 @@ export class CodeVisualizer {
 
     private renderConnectionLines(): void {
         for (const connection of this.connectionLines) {
-            this.renderConnectionLine(connection);
+            const isSelected = this.selectedConnection?.id === connection.id;
+            this.renderConnectionLine(connection, isSelected);
         }
     }
 
-    private renderConnectionLine(connection: ConnectionLine): void {
+    private renderConnectionLine(connection: ConnectionLine, isSelected: boolean = false): void {
         // Get the bounding boxes for start and end selections
         const startBounds = this.getSelectionBounds(connection.start);
         const endBounds = this.getSelectionBounds(connection.end);
@@ -325,9 +358,30 @@ export class CodeVisualizer {
 
         // Draw the line
         this.ctx.save();
-        this.ctx.strokeStyle = connection.color;
-        this.ctx.lineWidth = connection.width;
-        this.ctx.setLineDash([]);
+        
+        // Highlight selected connections
+        if (isSelected) {
+            this.ctx.strokeStyle = '#ffff00'; // Yellow highlight
+            this.ctx.lineWidth = connection.width + 2; // Thicker line
+            this.ctx.globalAlpha = 0.7;
+        } else {
+            this.ctx.strokeStyle = connection.color;
+            this.ctx.lineWidth = connection.width;
+        }
+        
+        // Set line dash pattern based on style
+        switch (connection.style) {
+            case 'dotted':
+                this.ctx.setLineDash([2, 4]);
+                break;
+            case 'dashed':
+                this.ctx.setLineDash([8, 4]);
+                break;
+            case 'solid':
+            default:
+                this.ctx.setLineDash([]);
+                break;
+        }
 
         // Draw a curved line
         this.ctx.beginPath();
@@ -344,8 +398,16 @@ export class CodeVisualizer {
 
         this.ctx.stroke();
 
-        // Draw arrow at end
-        this.drawArrow(endX, endY, Math.atan2(endY - startY, endX - startX), connection.color);
+        // Draw arrow at end (always solid)
+        this.ctx.setLineDash([]);
+        const arrowColor = isSelected ? '#ffff00' : connection.color;
+        this.drawArrow(endX, endY, Math.atan2(endY - startY, endX - startX), arrowColor);
+
+        // Draw label if present
+        if (connection.label) {
+            const labelColor = isSelected ? '#ffff00' : connection.color;
+            this.drawConnectionLabel(connection.label, startX, startY, endX, endY, labelColor, isSelected);
+        }
 
         this.ctx.restore();
     }
@@ -365,6 +427,54 @@ export class CodeVisualizer {
         this.ctx.lineTo(-arrowLength, arrowWidth / 2);
         this.ctx.closePath();
         this.ctx.fill();
+
+        this.ctx.restore();
+    }
+
+    private drawConnectionLabel(label: string, startX: number, startY: number, endX: number, endY: number, color: string, isSelected: boolean = false): void {
+        // Calculate midpoint of the connection
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2;
+
+        // Set label style
+        this.ctx.save();
+        this.ctx.font = '12px Consolas, Monaco, "Courier New", monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+
+        // Measure text for background
+        const textMetrics = this.ctx.measureText(label);
+        const textWidth = textMetrics.width;
+        const textHeight = 16; // Approximate height
+
+        // Draw background rectangle
+        const padding = 4;
+        if (isSelected) {
+            this.ctx.fillStyle = 'rgba(255, 255, 0, 0.3)'; // Yellow background when selected
+        } else {
+            this.ctx.fillStyle = 'rgba(30, 30, 30, 0.9)'; // Dark background with transparency
+        }
+        this.ctx.fillRect(
+            midX - textWidth / 2 - padding,
+            midY - textHeight / 2 - padding,
+            textWidth + padding * 2,
+            textHeight + padding * 2
+        );
+
+        // Draw border
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 1;
+        this.ctx.setLineDash([]);
+        this.ctx.strokeRect(
+            midX - textWidth / 2 - padding,
+            midY - textHeight / 2 - padding,
+            textWidth + padding * 2,
+            textHeight + padding * 2
+        );
+
+        // Draw text
+        this.ctx.fillStyle = '#ffffff'; // White text
+        this.ctx.fillText(label, midX, midY);
 
         this.ctx.restore();
     }
@@ -519,5 +629,150 @@ export class CodeVisualizer {
 
     public getCodeFiles(): CodeFile[] {
         return Array.from(this.codeFiles.values());
+    }
+
+    // Connection selection and management methods
+    private getConnectionAtPosition(x: number, y: number): ConnectionLine | null {
+        const clickTolerance = 10; // Pixels
+
+        for (const connection of this.connectionLines) {
+            if (this.isPointNearConnection(x, y, connection, clickTolerance)) {
+                return connection;
+            }
+        }
+        return null;
+    }
+
+    private isPointNearConnection(x: number, y: number, connection: ConnectionLine, tolerance: number): boolean {
+        const startBounds = this.getSelectionBounds(connection.start);
+        const endBounds = this.getSelectionBounds(connection.end);
+
+        if (!startBounds || !endBounds) return false;
+
+        const startX = startBounds.x + startBounds.width / 2;
+        const startY = startBounds.y + startBounds.height / 2;
+        const endX = endBounds.x + endBounds.width / 2;
+        const endY = endBounds.y + endBounds.height / 2;
+
+        // Check distance to the bezier curve (approximated with line segments)
+        const numSegments = 20;
+        for (let i = 0; i < numSegments; i++) {
+            const t1 = i / numSegments;
+            const t2 = (i + 1) / numSegments;
+
+            const p1 = this.getBezierPoint(startX, startY, endX, endY, t1);
+            const p2 = this.getBezierPoint(startX, startY, endX, endY, t2);
+
+            const distance = this.distanceToLineSegment(x, y, p1.x, p1.y, p2.x, p2.y);
+            if (distance <= tolerance) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private getBezierPoint(startX: number, startY: number, endX: number, endY: number, t: number): {x: number, y: number} {
+        const controlOffset = Math.abs(endY - startY) * 0.5;
+        const cp1x = startX + controlOffset;
+        const cp1y = startY;
+        const cp2x = endX - controlOffset;
+        const cp2y = endY;
+
+        // Cubic bezier formula
+        const mt = 1 - t;
+        const mt2 = mt * mt;
+        const mt3 = mt2 * mt;
+        const t2 = t * t;
+        const t3 = t2 * t;
+
+        return {
+            x: mt3 * startX + 3 * mt2 * t * cp1x + 3 * mt * t2 * cp2x + t3 * endX,
+            y: mt3 * startY + 3 * mt2 * t * cp1y + 3 * mt * t2 * cp2y + t3 * endY
+        };
+    }
+
+    private distanceToLineSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+        const A = px - x1;
+        const B = py - y1;
+        const C = x2 - x1;
+        const D = y2 - y1;
+
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+
+        if (lenSq === 0) {
+            // x1, y1 and x2, y2 are the same point
+            return Math.sqrt(A * A + B * B);
+        }
+
+        let param = dot / lenSq;
+        param = Math.max(0, Math.min(1, param));
+
+        const xx = x1 + param * C;
+        const yy = y1 + param * D;
+
+        const dx = px - xx;
+        const dy = py - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    private selectConnection(connection: ConnectionLine): void {
+        this.selectedConnection = connection;
+        this.render();
+        console.log(`Selected connection: ${connection.id}`);
+        
+        // Notify UI about connection selection
+        this.notifyConnectionSelected(connection);
+    }
+
+    private clearConnectionSelection(): void {
+        if (this.selectedConnection) {
+            this.selectedConnection = null;
+            this.render();
+            
+            // Notify UI about connection deselection
+            this.notifyConnectionDeselected();
+        }
+    }
+
+    private notifyConnectionSelected(connection: ConnectionLine): void {
+        // Dispatch custom event for UI to handle
+        const event = new CustomEvent('connectionSelected', { 
+            detail: { connection } 
+        });
+        this.canvas.dispatchEvent(event);
+    }
+
+    private notifyConnectionDeselected(): void {
+        // Dispatch custom event for UI to handle
+        const event = new CustomEvent('connectionDeselected');
+        this.canvas.dispatchEvent(event);
+    }
+
+    public updateSelectedConnection(updates: Partial<Pick<ConnectionLine, 'color' | 'width' | 'style' | 'label'>>): void {
+        if (!this.selectedConnection) return;
+
+        // Update the selected connection
+        Object.assign(this.selectedConnection, updates);
+        this.render();
+        
+        console.log(`Updated connection ${this.selectedConnection.id}:`, updates);
+    }
+
+    public deleteSelectedConnection(): void {
+        if (!this.selectedConnection) return;
+
+        const connectionId = this.selectedConnection.id;
+        this.connectionLines = this.connectionLines.filter(conn => conn.id !== connectionId);
+        this.selectedConnection = null;
+        this.render();
+        
+        console.log(`Deleted connection: ${connectionId}`);
+        this.notifyConnectionDeselected();
+    }
+
+    public getSelectedConnection(): ConnectionLine | null {
+        return this.selectedConnection;
     }
 } 

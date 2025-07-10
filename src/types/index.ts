@@ -61,12 +61,16 @@ export interface TextSelection {
     fileId?: string; // Add optional fileId to support multi-file selections
 }
 
+export type LineStyle = 'solid' | 'dotted' | 'dashed';
+
 export interface ConnectionLine {
     id: string;
     start: TextSelection;
     end: TextSelection;
     color: string;
     width: number;
+    style: LineStyle;
+    label?: string;
 }
 
 // Multi-file support types

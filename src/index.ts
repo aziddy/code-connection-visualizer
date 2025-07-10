@@ -29,6 +29,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const fontSizeSlider = document.getElementById('fontSizeSlider') as HTMLInputElement;
     const fontSizeLabel = document.getElementById('fontSizeLabel') as HTMLSpanElement;
     const lineColorPicker = document.getElementById('lineColorPicker') as HTMLInputElement;
+    const lineStyleSelect = document.getElementById('lineStyleSelect') as HTMLSelectElement;
+    const connectionLabel = document.getElementById('connectionLabel') as HTMLInputElement;
+    
+    // Connection editor elements
+    const connectionEditor = document.getElementById('connectionEditor') as HTMLDivElement;
+    const connectionInfo = document.getElementById('connectionInfo') as HTMLDivElement;
+    const editConnectionColor = document.getElementById('editConnectionColor') as HTMLInputElement;
+    const editConnectionStyle = document.getElementById('editConnectionStyle') as HTMLSelectElement;
+    const editConnectionWidth = document.getElementById('editConnectionWidth') as HTMLInputElement;
+    const editConnectionWidthLabel = document.getElementById('editConnectionWidthLabel') as HTMLSpanElement;
+    const editConnectionLabel = document.getElementById('editConnectionLabel') as HTMLInputElement;
+    const applyConnectionChanges = document.getElementById('applyConnectionChanges') as HTMLButtonElement;
+    const deleteConnection = document.getElementById('deleteConnection') as HTMLButtonElement;
 
     if (!canvas) {
         console.error('Canvas element not found');
@@ -40,7 +53,11 @@ document.addEventListener('DOMContentLoaded', () => {
         fileName1, codeInput1, loadCode1Btn, languageSelect1,
         fileName2, codeInput2, loadCode2Btn, languageSelect2,
         fileName3, codeInput3, loadCode3Btn, languageSelect3,
-        loadAllFilesBtn, clearAllFilesBtn, fontSizeSlider, fontSizeLabel, lineColorPicker
+        loadAllFilesBtn, clearAllFilesBtn, fontSizeSlider, fontSizeLabel, 
+        lineColorPicker, lineStyleSelect, connectionLabel,
+        connectionEditor, connectionInfo, editConnectionColor, editConnectionStyle,
+        editConnectionWidth, editConnectionWidthLabel, editConnectionLabel,
+        applyConnectionChanges, deleteConnection
     };
     
     for (const [name, element] of Object.entries(elements)) {
@@ -147,6 +164,67 @@ document.addEventListener('DOMContentLoaded', () => {
     lineColorPicker.addEventListener('change', () => {
         visualizer.setDefaultLineColor(lineColorPicker.value);
     });
+    
+    lineStyleSelect.addEventListener('change', () => {
+        visualizer.setDefaultLineStyle(lineStyleSelect.value as 'solid' | 'dotted' | 'dashed');
+    });
+    
+    connectionLabel.addEventListener('input', () => {
+        visualizer.setDefaultConnectionLabel(connectionLabel.value.trim());
+    });
+
+    // Connection editing event handlers
+    editConnectionWidth.addEventListener('input', () => {
+        editConnectionWidthLabel.textContent = `${editConnectionWidth.value}px`;
+    });
+
+    applyConnectionChanges.addEventListener('click', () => {
+        const updates = {
+            color: editConnectionColor.value,
+            style: editConnectionStyle.value as 'solid' | 'dotted' | 'dashed',
+            width: parseInt(editConnectionWidth.value),
+            label: editConnectionLabel.value.trim() || undefined
+        };
+        
+        visualizer.updateSelectedConnection(updates);
+        console.log('Applied connection changes:', updates);
+    });
+
+    deleteConnection.addEventListener('click', () => {
+        if (confirm('Are you sure you want to delete this connection?')) {
+            visualizer.deleteSelectedConnection();
+        }
+    });
+
+    // Listen for connection selection events
+    canvas.addEventListener('connectionSelected', (event: any) => {
+        const connection = event.detail.connection;
+        showConnectionEditor(connection);
+    });
+
+    canvas.addEventListener('connectionDeselected', () => {
+        hideConnectionEditor();
+    });
+
+    function showConnectionEditor(connection: any): void {
+        connectionEditor.style.display = 'block';
+        
+        // Display connection info
+        const startFile = visualizer.getCodeFiles().find(f => f.id === connection.start.fileId)?.name || 'Unknown';
+        const endFile = visualizer.getCodeFiles().find(f => f.id === connection.end.fileId)?.name || 'Unknown';
+        connectionInfo.textContent = `${startFile}:${connection.start.startLine + 1} → ${endFile}:${connection.end.startLine + 1}`;
+        
+        // Populate form with current values
+        editConnectionColor.value = connection.color;
+        editConnectionStyle.value = connection.style;
+        editConnectionWidth.value = connection.width.toString();
+        editConnectionWidthLabel.textContent = `${connection.width}px`;
+        editConnectionLabel.value = connection.label || '';
+    }
+
+    function hideConnectionEditor(): void {
+        connectionEditor.style.display = 'none';
+    }
 
     // Set default code examples
     codeInput1.value = `function fibonacci(n) {

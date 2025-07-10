@@ -90,9 +90,18 @@
             </div>
 
             <div class="controls">
-                <h3>Connection Line</h3>
+                <h3>Connection Style</h3>
                 <input type="color" id="lineColorPicker" value="#007acc">
                 <label for="lineColorPicker">Line Color</label>
+                
+                <select id="lineStyleSelect">
+                    <option value="solid">Solid Line</option>
+                    <option value="dotted">Dotted Line</option>
+                    <option value="dashed">Dashed Line</option>
+                </select>
+                
+                <input type="text" id="connectionLabel" placeholder="Connection label (optional)" maxlength="50">
+                <label for="connectionLabel">Label for next connection</label>
             </div>
 
             <div class="controls">
@@ -155,6 +164,31 @@
                     style="width: 100%; padding: 8px; margin-bottom: 10px; background-color: #28a745; border: none; color: white; border-radius: 4px; cursor: pointer;">Load All Files</button>
                 <button id="clearAllFiles"
                     style="width: 100%; padding: 8px; background-color: #dc3545; border: none; color: white; border-radius: 4px; cursor: pointer;">Clear All Files</button>
+            </div>
+
+            <div class="controls" id="connectionEditor" style="display: none;">
+                <h3>Edit Connection</h3>
+                <div id="connectionInfo" style="margin-bottom: 10px; font-size: 12px; color: #cccccc;"></div>
+                
+                <input type="color" id="editConnectionColor">
+                <label for="editConnectionColor">Connection Color</label>
+                
+                <select id="editConnectionStyle">
+                    <option value="solid">Solid Line</option>
+                    <option value="dotted">Dotted Line</option>
+                    <option value="dashed">Dashed Line</option>
+                </select>
+                
+                <input type="range" id="editConnectionWidth" min="1" max="8" value="2">
+                <label for="editConnectionWidth">Line Width: <span id="editConnectionWidthLabel">2px</span></label>
+                
+                <input type="text" id="editConnectionLabel" placeholder="Connection label" maxlength="50">
+                <label for="editConnectionLabel">Connection Label</label>
+                
+                <button id="applyConnectionChanges"
+                    style="width: 100%; padding: 8px; margin: 10px 0 5px 0; background-color: #28a745; border: none; color: white; border-radius: 4px; cursor: pointer;">Apply Changes</button>
+                <button id="deleteConnection"
+                    style="width: 100%; padding: 8px; background-color: #dc3545; border: none; color: white; border-radius: 4px; cursor: pointer;">Delete Connection</button>
             </div>
         </div>
 
