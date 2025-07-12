@@ -1,5 +1,7 @@
 import { TextRenderer } from './TextRenderer';
 import { SyntaxHighlighter } from './SyntaxHighlighter';
+import { FloatingPrompt } from './FloatingPrompt';
+import { PromptTemplates } from './PromptTemplates';
 import {
     CharacterBounds,
     TextSelection,
@@ -20,10 +22,18 @@ export class CodeVisualizer {
     private codeFiles: Map<string, CodeFile> = new Map();
     private fileLayouts: Map<string, FileLayout> = new Map();
     private connectionLines: ConnectionLine[] = [];
-    private defaultLineColor: string = '#007acc';
-    private defaultLineStyle: LineStyle = 'solid';
-    private defaultConnectionLabel: string = '';
     private activeFileId: string | null = null;
+
+    // Store last used connection settings for reuse
+    private lastUsedSettings: {
+        color: string;
+        style: LineStyle;
+        width: number;
+    } = {
+        color: '#007acc',
+        style: 'solid',
+        width: 2
+    };
 
     // Interaction state
     private isSelecting: boolean = false;
@@ -38,6 +48,10 @@ export class CodeVisualizer {
     
     // Connection editing state
     private selectedConnection: ConnectionLine | null = null;
+    
+    // Floating prompt state
+    private currentPrompt: FloatingPrompt | null = null;
+    private promptContainer: HTMLElement;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
@@ -49,6 +63,9 @@ export class CodeVisualizer {
 
         this.textRenderer = new TextRenderer(canvas);
         this.syntaxHighlighter = new SyntaxHighlighter();
+        
+        // Set up prompt container (use canvas parent or body)
+        this.promptContainer = canvas.parentElement || document.body;
 
         this.setupEventListeners();
     }
@@ -115,13 +132,10 @@ export class CodeVisualizer {
     }
 
     private handleKeyDown(event: KeyboardEvent): void {
-        // Press 'C' to create connection between selections
+        // Press 'C' to create connection between selections without prompt
         if (event.key === 'c' || event.key === 'C') {
             if (this.pendingSelection && this.firstSelection) {
-                this.createConnection(this.firstSelection, this.pendingSelection);
-                this.firstSelection = null;
-                this.pendingSelection = null;
-                this.isCreatingConnection = false;
+                this.createConnectionDirectly(this.firstSelection, this.pendingSelection);
             } else if (this.pendingSelection) {
                 this.firstSelection = this.pendingSelection;
                 this.isCreatingConnection = true;
@@ -129,11 +143,16 @@ export class CodeVisualizer {
             }
         }
 
-        // Press 'Escape' to cancel connection creation
+        // Press 'Escape' to cancel connection creation or close prompt
         if (event.key === 'Escape') {
-            this.firstSelection = null;
-            this.isCreatingConnection = false;
-            console.log('Connection creation cancelled.');
+            if (this.currentPrompt) {
+                this.currentPrompt.close();
+                this.currentPrompt = null;
+            } else {
+                this.firstSelection = null;
+                this.isCreatingConnection = false;
+                console.log('Connection creation cancelled.');
+            }
         }
 
         // Press 'Delete' to clear all connections or delete selected connection
@@ -199,25 +218,6 @@ export class CodeVisualizer {
         this.currentSelection = null;
     }
 
-    private createConnection(start: TextSelection, end: TextSelection): void {
-        const connection: ConnectionLine = {
-            id: `conn_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
-            start: { ...start },
-            end: { ...end },
-            color: this.defaultLineColor,
-            width: 2,
-            style: this.defaultLineStyle,
-            label: this.defaultConnectionLabel || undefined
-        };
-
-        this.connectionLines.push(connection);
-        this.render();
-
-        const startFile = this.codeFiles.get(start.fileId!)?.name || 'Unknown';
-        const endFile = this.codeFiles.get(end.fileId!)?.name || 'Unknown';
-        const labelText = connection.label ? ` with label "${connection.label}"` : '';
-        console.log(`Connection created between ${startFile}:${start.startLine + 1} and ${endFile}:${end.startLine + 1}${labelText} (${connection.style} style)`);
-    }
 
     public loadCodeFile(id: string, name: string, code: string, language?: SupportedLanguage): void {
         console.log(`CodeVisualizer.loadCodeFile called: ${id}, ${name}, code length: ${code.length}`);
@@ -255,16 +255,13 @@ export class CodeVisualizer {
     }
 
     public setDefaultLineColor(color: string): void {
-        this.defaultLineColor = color;
+        this.lastUsedSettings.color = color;
     }
 
     public setDefaultLineStyle(style: LineStyle): void {
-        this.defaultLineStyle = style;
+        this.lastUsedSettings.style = style;
     }
 
-    public setDefaultConnectionLabel(label: string): void {
-        this.defaultConnectionLabel = label;
-    }
 
     public handleResize(): void {
         this.updateFileLayouts();
@@ -722,6 +719,9 @@ export class CodeVisualizer {
         this.render();
         console.log(`Selected connection: ${connection.id}`);
         
+        // Show connection editing prompt
+        this.showConnectionEditPrompt(connection);
+        
         // Notify UI about connection selection
         this.notifyConnectionSelected(connection);
     }
@@ -1021,5 +1021,225 @@ export class CodeVisualizer {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    // Floating prompt methods
+
+    private showConnectionEditPrompt(connection: ConnectionLine): void {
+        // Close any existing prompt
+        if (this.currentPrompt) {
+            this.currentPrompt.close();
+        }
+
+        const config = PromptTemplates.editConnectionPrompt(
+            connection,
+            (values) => this.handleConnectionEdit(connection, values),
+            () => this.handleConnectionDelete(connection),
+            () => this.handleConnectionEditCancel()
+        );
+
+        this.currentPrompt = new FloatingPrompt(config);
+        this.currentPrompt.onClose(() => {
+            this.currentPrompt = null;
+        });
+        this.currentPrompt.show(this.promptContainer);
+    }
+
+    private createConnectionDirectly(start: TextSelection, end: TextSelection): void {
+        const connection: ConnectionLine = {
+            id: `conn_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+            start: { ...start },
+            end: { ...end },
+            color: this.lastUsedSettings.color,
+            width: this.lastUsedSettings.width,
+            style: this.lastUsedSettings.style,
+            label: undefined // Always leave label blank as requested
+        };
+
+        this.connectionLines.push(connection);
+        this.render();
+
+        // Clean up connection creation state
+        this.firstSelection = null;
+        this.pendingSelection = null;
+        this.isCreatingConnection = false;
+
+        const startFile = this.codeFiles.get(start.fileId!)?.name || 'Unknown';
+        const endFile = this.codeFiles.get(end.fileId!)?.name || 'Unknown';
+        console.log(`Connection created between ${startFile}:${start.startLine + 1} and ${endFile}:${end.startLine + 1} (${connection.style} style)`);
+    }
+
+
+    private handleConnectionEdit(connection: ConnectionLine, values: any): void {
+        // Update connection properties
+        if (values.label !== undefined) connection.label = values.label || undefined;
+        if (values.color) connection.color = values.color;
+        if (values.style) connection.style = values.style;
+        if (values.width) connection.width = values.width;
+
+        // Update last used settings when connection is edited
+        this.lastUsedSettings = {
+            color: connection.color,
+            style: connection.style,
+            width: connection.width
+        };
+
+        this.render();
+        
+        // Close prompt
+        if (this.currentPrompt) {
+            this.currentPrompt.close();
+            this.currentPrompt = null;
+        }
+        
+        console.log(`Updated connection ${connection.id}:`, values);
+    }
+
+    private handleConnectionDelete(connection: ConnectionLine): void {
+        this.connectionLines = this.connectionLines.filter(conn => conn.id !== connection.id);
+        this.selectedConnection = null;
+        this.render();
+        
+        // Close prompt
+        if (this.currentPrompt) {
+            this.currentPrompt.close();
+            this.currentPrompt = null;
+        }
+        
+        console.log(`Deleted connection: ${connection.id}`);
+        this.notifyConnectionDeselected();
+    }
+
+    private handleConnectionEditCancel(): void {
+        // Just close the prompt, keep the connection selected
+        if (this.currentPrompt) {
+            this.currentPrompt.close();
+            this.currentPrompt = null;
+        }
+    }
+
+    // Public methods for triggering prompts
+    public showQuickActionPrompt(x: number, y: number): void {
+        if (!this.pendingSelection) return;
+
+        const config = PromptTemplates.quickActionPrompt(
+            {
+                fileName: this.codeFiles.get(this.pendingSelection.fileId!)?.name || 'Unknown',
+                startLine: this.pendingSelection.startLine,
+                selectedText: this.getSelectedText(this.pendingSelection)
+            },
+            (values) => this.handleQuickConnect(values),
+            (values) => this.handleQuickEdit(values),
+            () => this.handleQuickCancel()
+        );
+
+        config.position = { x, y };
+
+        this.currentPrompt = new FloatingPrompt(config);
+        this.currentPrompt.onClose(() => {
+            this.currentPrompt = null;
+        });
+        this.currentPrompt.show(this.promptContainer);
+    }
+
+    public showExportPrompt(x: number, y: number): void {
+        const config = PromptTemplates.exportPrompt(
+            (values) => this.handleExport(values),
+            () => this.handleExportCancel(),
+            'code-visualization'
+        );
+
+        config.position = { x, y };
+
+        this.currentPrompt = new FloatingPrompt(config);
+        this.currentPrompt.onClose(() => {
+            this.currentPrompt = null;
+        });
+        this.currentPrompt.show(this.promptContainer);
+    }
+
+    private handleQuickConnect(_values: any): void {
+        if (this.pendingSelection) {
+            this.firstSelection = this.pendingSelection;
+            this.isCreatingConnection = true;
+            console.log('First selection set for quick connection. Select another text sequence and press C.');
+        }
+        
+        if (this.currentPrompt) {
+            this.currentPrompt.close();
+            this.currentPrompt = null;
+        }
+    }
+
+    private handleQuickEdit(values: any): void {
+        console.log('Quick edit not implemented yet:', values);
+        
+        if (this.currentPrompt) {
+            this.currentPrompt.close();
+            this.currentPrompt = null;
+        }
+    }
+
+    private handleQuickCancel(): void {
+        if (this.currentPrompt) {
+            this.currentPrompt.close();
+            this.currentPrompt = null;
+        }
+    }
+
+    private handleExport(values: any): void {
+        const filename = values.filename || 'code-visualization';
+        const format = values.format || 'png';
+        
+        switch (format) {
+            case 'png':
+                this.exportAsPNG(filename);
+                break;
+            case 'svg':
+                this.exportAsSVG(filename);
+                break;
+            case 'pdf':
+                this.exportAsPDF(filename);
+                break;
+        }
+        
+        if (this.currentPrompt) {
+            this.currentPrompt.close();
+            this.currentPrompt = null;
+        }
+    }
+
+    private handleExportCancel(): void {
+        if (this.currentPrompt) {
+            this.currentPrompt.close();
+            this.currentPrompt = null;
+        }
+    }
+
+    private getSelectedText(selection: TextSelection): string {
+        if (!selection.fileId) return '';
+        
+        const codeFile = this.codeFiles.get(selection.fileId);
+        if (!codeFile) return '';
+        
+        if (selection.startLine === selection.endLine) {
+            // Single line selection
+            const line = codeFile.lines[selection.startLine];
+            return line.substring(selection.startCharIndex, selection.endCharIndex + 1);
+        } else {
+            // Multi-line selection
+            let text = '';
+            for (let i = selection.startLine; i <= selection.endLine; i++) {
+                const line = codeFile.lines[i];
+                if (i === selection.startLine) {
+                    text += line.substring(selection.startCharIndex) + '\n';
+                } else if (i === selection.endLine) {
+                    text += line.substring(0, selection.endCharIndex + 1);
+                } else {
+                    text += line + '\n';
+                }
+            }
+            return text;
+        }
     }
 } 

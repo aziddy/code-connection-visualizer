@@ -40,6 +40,28 @@ export class SyntaxHighlighter {
             brackets: ['(', ')', '[', ']', '{', '}'],
             lineComment: '#'
         });
+
+        // C
+        this.languages.set('c', {
+            name: 'C',
+            extensions: ['.c', '.h'],
+            keywords: ['auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if', 'inline', 'int', 'long', 'register', 'restrict', 'return', 'short', 'signed', 'sizeof', 'static', 'struct', 'switch', 'typedef', 'union', 'unsigned', 'void', 'volatile', 'while', '_Bool', '_Complex', '_Imaginary'],
+            operators: ['+', '-', '*', '/', '%', '=', '==', '!=', '<', '>', '<=', '>=', '&&', '||', '!', '++', '--', '+=', '-=', '*=', '/=', '%=', '&', '|', '^', '~', '<<', '>>', '&=', '|=', '^=', '<<=', '>>=', '->', '.'],
+            brackets: ['(', ')', '[', ']', '{', '}'],
+            lineComment: '//',
+            blockComment: { start: '/*', end: '*/' }
+        });
+
+        // Devicetree
+        this.languages.set('devicetree', {
+            name: 'Devicetree',
+            extensions: ['.dts', '.dtsi', '.overlay'],
+            keywords: ['/dts-v1/', '/plugin/', '/delete-node/', '/delete-property/', '/include/', '/incbin/', '/memreserve/', 'compatible', 'reg', 'interrupts', 'interrupt-parent', 'status', 'okay', 'disabled', 'phandle', '#address-cells', '#size-cells', '#interrupt-cells', 'ranges', 'dma-ranges'],
+            operators: ['=', '?', ':', '&', '|', '^', '~', '<<', '>>', '+', '-', '*', '/', '%'],
+            brackets: ['(', ')', '[', ']', '{', '}', '<', '>'],
+            lineComment: '//',
+            blockComment: { start: '/*', end: '*/' }
+        });
     }
 
     private initializeThemes(): void {
@@ -66,6 +88,24 @@ export class SyntaxHighlighter {
         }
 
         // Simple heuristics for language detection
+        
+        // Devicetree detection - check for distinctive DTS syntax
+        if (code.includes('/dts-v1/') || code.includes('/plugin/') || code.includes('/include/') || 
+            (code.includes('compatible =') && code.includes('reg =')) ||
+            code.includes('#address-cells') || code.includes('#size-cells')) {
+            return 'devicetree';
+        }
+
+        // C detection - check for distinctive C syntax
+        if ((code.includes('#include') && (code.includes('<') || code.includes('"'))) ||
+            (code.includes('int main') || code.includes('void main')) ||
+            (code.includes('struct ') && code.includes('{')) ||
+            (code.includes('typedef ') && (code.includes('struct') || code.includes('enum'))) ||
+            code.includes('printf(') || code.includes('malloc(')) {
+            return 'c';
+        }
+
+        // JavaScript/TypeScript detection
         if (code.includes('function') && (code.includes('const') || code.includes('let'))) {
             if (code.includes('interface') || code.includes(': string') || code.includes(': number')) {
                 return 'typescript';
@@ -73,6 +113,7 @@ export class SyntaxHighlighter {
             return 'javascript';
         }
 
+        // Python detection
         if (code.includes('def ') && code.includes(':')) {
             return 'python';
         }

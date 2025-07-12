@@ -11,7 +11,7 @@ A powerful TypeScript web application for visualizing connections between code e
 - **Character-Level Interaction**: Precise mouse interaction with individual characters
 - **Text Selection**: Click and drag to select text sequences
 - **Connection Visualization**: Draw curved lines between selected code segments
-- **Multi-Language Support**: JavaScript, TypeScript, Python detection
+- **Multi-Language Support**: JavaScript, TypeScript, Python, C, Devicetree detection
 
 ### 🎯 Key Capabilities
 
@@ -38,6 +38,13 @@ A powerful TypeScript web application for visualizing connections between code e
    - Color-coded selection states (blue, green, yellow, red)
    - Visual arrows showing connection direction
    - Connection management (create, delete, export/import)
+
+5. **Floating Prompt System**
+   - Generic floating prompt window for quick actions
+   - Draggable, closable prompts with customizable content
+   - Connection creation and editing prompts
+   - Export options prompt with multiple formats
+   - Context menu integration (right-click/double-click)
 
 ## How to Use
 
@@ -79,12 +86,16 @@ A powerful TypeScript web application for visualizing connections between code e
 ### Controls
 
 - **Mouse**: Click and drag to select text
-- **C key**: Create connections between selections
-- **Delete**: Clear all connections  
-- **Escape**: Cancel connection creation
+- **C key**: Create connections between selections (now opens floating prompt)
+- **Right-click**: Open quick action prompt
+- **Double-click**: Open quick action prompt
+- **Click connection**: Edit connection with floating prompt  
+- **Delete**: Clear all connections or delete selected connection
+- **Escape**: Cancel connection creation or close floating prompt
 - **Font Size Slider**: Adjust text size
 - **Language Dropdown**: Override auto-detection
 - **Color Picker**: Set connection line color
+- **Export Buttons**: Now open floating prompt for format selection
 
 ## Technical Architecture
 
@@ -112,6 +123,18 @@ A powerful TypeScript web application for visualizing connections between code e
    - Comprehensive TypeScript interfaces
    - Character bounds, selections, connections
    - Rendering state and configuration
+
+5. **FloatingPrompt** (`src/core/FloatingPrompt.ts`)
+   - Generic floating window system
+   - Draggable, customizable UI components
+   - Event handling and state management
+   - Template-based configuration system
+
+6. **PromptTemplates** (`src/core/PromptTemplates.ts`)
+   - Pre-configured prompt templates
+   - Connection creation and editing forms
+   - Export options and settings dialogs
+   - Extensible template system for future features
 
 ### Performance Optimizations
 
@@ -147,9 +170,9 @@ npm run watch
 - [x] **Connection Labels**: Add text labels to connections
 - [x] **Change Connections**: Ability to Select, Edit Color/Stroke/Style/Label, Delete Connections
 - [x] **Export Options**: Save Canvas as SVG, PNG, or PDF
-- [ ] **Floating Prompt Window**: Add a floating prompt window to the canvas that allows for both quick connection creation and editing
+- [x] **Floating Prompt Window**: Add a floating prompt window to the canvas that allows for both quick connection creation and editing
 - [ ] **Control-F Substring Connect**: Option to form connections to other char/substring that matched the current selection
-- [ ] **Additional Syntax Highlighting 1**: Add for C and Devicetree (.dts, .dtsi, .overlay)
+- [x] **Additional Syntax Highlighting 1**: Add for C and Devicetree (.dts, .dtsi, .overlay)
 - [ ] **Code Folding**: Collapse/expand code sections  
 - [ ] **Minimap**: Overview panel for large files
 - [ ] **Save/Load ProjectFiles**: Add the option to save and load project files 

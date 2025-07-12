@@ -110,6 +110,8 @@ export type SupportedLanguage =
     | 'python'
     | 'java'
     | 'cpp'
+    | 'c'
+    | 'devicetree'
     | 'html'
     | 'css'
     | 'json'

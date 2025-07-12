@@ -175,9 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
         visualizer.setDefaultLineStyle(lineStyleSelect.value as 'solid' | 'dotted' | 'dashed');
     });
     
-    connectionLabel.addEventListener('input', () => {
-        visualizer.setDefaultConnectionLabel(connectionLabel.value.trim());
-    });
 
     // Connection editing event handlers
     editConnectionWidth.addEventListener('input', () => {
@@ -232,21 +229,73 @@ document.addEventListener('DOMContentLoaded', () => {
         connectionEditor.style.display = 'none';
     }
 
-    // Export event handlers
+    // Export event handlers (now use floating prompt)
     exportPNG.addEventListener('click', () => {
-        const filename = exportFilename.value.trim() || 'code-visualization';
-        visualizer.exportAsPNG(filename);
+        const rect = canvas.getBoundingClientRect();
+        visualizer.showExportPrompt(rect.width / 2, rect.height / 2);
     });
 
     exportSVG.addEventListener('click', () => {
-        const filename = exportFilename.value.trim() || 'code-visualization';
-        visualizer.exportAsSVG(filename);
+        const rect = canvas.getBoundingClientRect();
+        visualizer.showExportPrompt(rect.width / 2, rect.height / 2);
     });
 
     exportPDF.addEventListener('click', () => {
-        const filename = exportFilename.value.trim() || 'code-visualization';
-        visualizer.exportAsPDF(filename);
+        const rect = canvas.getBoundingClientRect();
+        visualizer.showExportPrompt(rect.width / 2, rect.height / 2);
     });
+
+    // Context menu support for floating prompts
+    canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // Show quick action prompt if there's a selection
+        visualizer.showQuickActionPrompt(x, y);
+    });
+
+    // Double-click to show quick actions
+    canvas.addEventListener('dblclick', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        visualizer.showQuickActionPrompt(x, y);
+    });
+
+    // Add floating prompt controls to the UI
+    const floatingPromptControls = document.createElement('div');
+    floatingPromptControls.style.cssText = `
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: rgba(45, 45, 48, 0.9);
+        border: 1px solid #3e3e42;
+        border-radius: 6px;
+        padding: 10px;
+        z-index: 999;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 12px;
+        color: #d4d4d4;
+    `;
+    
+    floatingPromptControls.innerHTML = `
+        <div style="margin-bottom: 5px; font-weight: bold;">Floating Prompt Controls:</div>
+        <div>• Right-click canvas for quick actions</div>
+        <div>• Double-click for quick actions</div>
+        <div>• Select text and press 'C' for connection prompt</div>
+        <div>• Click connection to edit with prompt</div>
+        <div>• Export buttons now use floating prompts</div>
+    `;
+    
+    document.body.appendChild(floatingPromptControls);
+    
+    // Hide controls after 10 seconds
+    setTimeout(() => {
+        floatingPromptControls.style.display = 'none';
+    }, 10000);
 
     // Set default code examples
     codeInput1.value = `function fibonacci(n) {
@@ -282,5 +331,5 @@ print(f"Factorial result: {result}")`;
     border-radius: 4px;
 }`;
 
-    console.log('Code Connect Visualizer initialized');
+    console.log('Code Connect Visualizer with Floating Prompts initialized');
 }); 
