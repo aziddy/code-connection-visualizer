@@ -2,6 +2,7 @@ import { TextRenderer } from './TextRenderer';
 import { SyntaxHighlighter } from './SyntaxHighlighter';
 import { FloatingPrompt } from './FloatingPrompt';
 import { PromptTemplates } from './PromptTemplates';
+import { PaneManager } from './PaneManager';
 import {
     CharacterBounds,
     TextSelection,
@@ -9,7 +10,9 @@ import {
     SupportedLanguage,
     CodeFile,
     FileLayout,
-    LineStyle
+    LineStyle,
+    EditorPane,
+    LayoutMode
 } from '../types/index';
 
 export class CodeVisualizer {
@@ -17,6 +20,7 @@ export class CodeVisualizer {
     private ctx: CanvasRenderingContext2D;
     private textRenderer: TextRenderer;
     private syntaxHighlighter: SyntaxHighlighter;
+    private paneManager: PaneManager;
 
     // Multi-file state
     private codeFiles: Map<string, CodeFile> = new Map();
@@ -63,11 +67,34 @@ export class CodeVisualizer {
 
         this.textRenderer = new TextRenderer(canvas);
         this.syntaxHighlighter = new SyntaxHighlighter();
+        this.paneManager = new PaneManager();
         
         // Set up prompt container (use canvas parent or body)
         this.promptContainer = canvas.parentElement || document.body;
 
+        this.setupPaneManager();
         this.setupEventListeners();
+    }
+
+    private setupPaneManager(): void {
+        // Set initial canvas dimensions
+        this.paneManager.setCanvasDimensions(this.canvas.width, this.canvas.height);
+
+        // Listen for pane changes
+        this.paneManager.onPaneChange((panes: EditorPane[]) => {
+            this.updateFileLayoutsFromPanes();
+            this.render();
+            
+            // Dispatch custom event for UI updates
+            const event = new CustomEvent('panesChanged', { detail: { panes } });
+            this.canvas.dispatchEvent(event);
+        });
+
+        // Listen for layout changes
+        this.paneManager.onLayoutChange(() => {
+            this.updateFileLayoutsFromPanes();
+            this.render();
+        });
     }
 
     private setupEventListeners(): void {
@@ -87,6 +114,17 @@ export class CodeVisualizer {
         const rect = this.canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
+
+        // Check if clicking on a pane tab
+        const tabClick = this.paneManager.isPaneTabAt(x, y);
+        if (tabClick) {
+            if (tabClick.isCloseButton) {
+                this.paneManager.removePane(tabClick.paneId);
+            } else {
+                this.paneManager.setActivePane(tabClick.paneId);
+            }
+            return;
+        }
 
         // Check if clicking on a connection line first
         const clickedConnection = this.getConnectionAtPosition(x, y);
@@ -219,7 +257,7 @@ export class CodeVisualizer {
     }
 
 
-    public loadCodeFile(id: string, name: string, code: string, language?: SupportedLanguage): void {
+    public loadCodeFile(id: string, name: string, code: string, language?: SupportedLanguage): string {
         console.log(`CodeVisualizer.loadCodeFile called: ${id}, ${name}, code length: ${code.length}`);
         
         const detectedLanguage = language || this.syntaxHighlighter.detectLanguage(code);
@@ -238,10 +276,25 @@ export class CodeVisualizer {
         this.codeFiles.set(id, codeFile);
         console.log(`Files now loaded: ${Array.from(this.codeFiles.keys()).join(', ')}`);
         
-        this.updateFileLayouts();
+        // Create a new pane for this file or attach to existing pane
+        let paneId: string;
+        const activePane = this.paneManager.getActivePane();
+        
+        if (activePane && !activePane.fileId) {
+            // Use existing empty pane
+            this.paneManager.attachFileToPane(activePane.id, id, name);
+            paneId = activePane.id;
+        } else {
+            // Create new pane
+            paneId = this.paneManager.createPane(name, id);
+        }
+        
+        this.updateFileLayoutsFromPanes();
         this.render();
 
         console.log(`Code file '${name}' loaded with ${lines.length} lines (${detectedLanguage})`);
+        
+        return paneId;
     }
 
     // Legacy method for backward compatibility
@@ -264,8 +317,31 @@ export class CodeVisualizer {
 
 
     public handleResize(): void {
-        this.updateFileLayouts();
+        this.paneManager.setCanvasDimensions(this.canvas.width, this.canvas.height);
+        this.updateFileLayoutsFromPanes();
         this.render();
+    }
+
+    private updateFileLayoutsFromPanes(): void {
+        this.fileLayouts.clear();
+        
+        const paneLayouts = this.paneManager.getPaneLayouts();
+        const panes = this.paneManager.getPanes();
+
+        for (const pane of panes) {
+            const paneLayout = paneLayouts.get(pane.id);
+            if (!paneLayout || !pane.fileId) continue;
+
+            // Convert pane layout to file layout
+            this.fileLayouts.set(pane.fileId, {
+                id: pane.fileId,
+                x: paneLayout.x,
+                y: paneLayout.y,
+                width: paneLayout.width,
+                height: paneLayout.height - paneLayout.tabHeight,
+                visible: true
+            });
+        }
     }
 
     private render(): void {
@@ -273,6 +349,9 @@ export class CodeVisualizer {
         
         // Clear canvas
         this.textRenderer.clear();
+
+        // Render pane tabs first
+        this.renderPaneTabs();
 
         // Render all code files
         for (const [fileId, codeFile] of this.codeFiles) {
@@ -331,6 +410,55 @@ export class CodeVisualizer {
 
         // Render connection lines
         this.renderConnectionLines();
+    }
+
+    private renderPaneTabs(): void {
+        const panes = this.paneManager.getPanes();
+        const paneLayouts = this.paneManager.getPaneLayouts();
+        
+        if (panes.length === 0) return;
+
+        this.ctx.save();
+        
+        // For now, render a simple tab bar across the top
+        const tabHeight = 30;
+        const tabWidth = Math.min(150, this.canvas.width / Math.max(1, panes.length));
+        
+        let currentX = 0;
+        
+        for (const pane of panes) {
+            const paneLayout = paneLayouts.get(pane.id);
+            if (!paneLayout) continue;
+            
+            // Tab background
+            this.ctx.fillStyle = pane.isActive ? '#3c3c3c' : '#2d2d30';
+            this.ctx.fillRect(currentX, 0, tabWidth, tabHeight);
+            
+            // Tab border
+            this.ctx.strokeStyle = '#444444';
+            this.ctx.strokeRect(currentX, 0, tabWidth, tabHeight);
+            
+            // Tab text
+            this.ctx.fillStyle = '#cccccc';
+            this.ctx.font = '12px Consolas, Monaco, "Courier New", monospace';
+            this.ctx.textAlign = 'left';
+            this.ctx.textBaseline = 'middle';
+            
+            const text = pane.title.length > 15 ? pane.title.substring(0, 12) + '...' : pane.title;
+            this.ctx.fillText(text, currentX + 8, tabHeight / 2);
+            
+            // Close button (X)
+            if (panes.length > 1) {
+                this.ctx.fillStyle = '#cccccc';
+                this.ctx.font = '14px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('×', currentX + tabWidth - 15, tabHeight / 2);
+            }
+            
+            currentX += tabWidth;
+        }
+        
+        this.ctx.restore();
     }
 
     private renderConnectionLines(): void {
@@ -525,77 +653,6 @@ export class CodeVisualizer {
     }
 
     // Multi-file specific methods
-    private updateFileLayouts(): void {
-        const files = Array.from(this.codeFiles.values());
-        const canvasWidth = this.canvas.width;
-        const canvasHeight = this.canvas.height;
-        
-        console.log(`updateFileLayouts: ${files.length} files, canvas: ${canvasWidth}x${canvasHeight}`);
-        
-        if (files.length === 0) {
-            console.log('No files to layout');
-            return;
-        }
-
-        // Calculate layout based on number of files
-        if (files.length === 1) {
-            this.fileLayouts.set(files[0].id, {
-                id: files[0].id,
-                x: 0,
-                y: 0,
-                width: canvasWidth,
-                height: canvasHeight,
-                visible: true
-            });
-        } else if (files.length === 2) {
-            // Side by side layout
-            const width = canvasWidth / 2;
-            this.fileLayouts.set(files[0].id, {
-                id: files[0].id,
-                x: 0,
-                y: 0,
-                width: width - 10,
-                height: canvasHeight,
-                visible: true
-            });
-            this.fileLayouts.set(files[1].id, {
-                id: files[1].id,
-                x: width + 10,
-                y: 0,
-                width: width - 10,
-                height: canvasHeight,
-                visible: true
-            });
-        } else if (files.length === 3) {
-            // 2 top, 1 bottom layout
-            const width = canvasWidth / 2;
-            const height = canvasHeight / 2;
-            this.fileLayouts.set(files[0].id, {
-                id: files[0].id,
-                x: 0,
-                y: 0,
-                width: width - 5,
-                height: height - 5,
-                visible: true
-            });
-            this.fileLayouts.set(files[1].id, {
-                id: files[1].id,
-                x: width + 5,
-                y: 0,
-                width: width - 5,
-                height: height - 5,
-                visible: true
-            });
-            this.fileLayouts.set(files[2].id, {
-                id: files[2].id,
-                x: canvasWidth / 4,
-                y: height + 5,
-                width: canvasWidth / 2,
-                height: height - 5,
-                visible: true
-            });
-        }
-    }
 
     private getCharacterAtPosition(x: number, y: number): { char: CharacterBounds; fileId: string } | null {
         for (const [fileId, layout] of this.fileLayouts) {
@@ -619,13 +676,59 @@ export class CodeVisualizer {
         this.connectionLines = this.connectionLines.filter(
             conn => conn.start.fileId !== id && conn.end.fileId !== id
         );
+
+        // Detach file from any panes that have it
+        const panes = this.paneManager.getPanes();
+        for (const pane of panes) {
+            if (pane.fileId === id) {
+                this.paneManager.detachFileFromPane(pane.id);
+            }
+        }
         
-        this.updateFileLayouts();
+        this.updateFileLayoutsFromPanes();
         this.render();
     }
 
     public getCodeFiles(): CodeFile[] {
         return Array.from(this.codeFiles.values());
+    }
+
+    // Pane management public API
+    public createEmptyPane(title: string = 'New Pane'): string {
+        return this.paneManager.createPane(title, null);
+    }
+
+    public closePane(paneId: string): boolean {
+        const pane = this.paneManager.getPane(paneId);
+        if (pane && pane.fileId) {
+            // Optionally remove the file when closing pane
+            // this.codeFiles.delete(pane.fileId);
+        }
+        return this.paneManager.removePane(paneId);
+    }
+
+    public setActivePane(paneId: string): boolean {
+        return this.paneManager.setActivePane(paneId);
+    }
+
+    public movePane(paneId: string, newPosition: number): boolean {
+        return this.paneManager.movePane(paneId, newPosition);
+    }
+
+    public setLayoutMode(mode: LayoutMode): void {
+        this.paneManager.setLayoutMode(mode);
+    }
+
+    public getPanes(): EditorPane[] {
+        return this.paneManager.getPanes();
+    }
+
+    public getActivePane(): EditorPane | null {
+        return this.paneManager.getActivePane();
+    }
+
+    public getLayoutMode(): LayoutMode {
+        return this.paneManager.getLayoutMode();
     }
 
     // Connection selection and management methods

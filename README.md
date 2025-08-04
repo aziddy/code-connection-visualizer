@@ -171,6 +171,7 @@ npm run watch
 - [x] **Change Connections**: Ability to Select, Edit Color/Stroke/Style/Label, Delete Connections
 - [x] **Export Options**: Save Canvas as SVG, PNG, or PDF
 - [x] **Floating Prompt Window**: Add a floating prompt window to the canvas that allows for both quick connection creation and editing
+- [ ] **Advanced Editor Structing**: Add, Remove and Rearrange Code File Panes in Editor (like VS Code)
 - [ ] **Control-F Substring Connect**: Option to form connections to other char/substring that matched the current selection
 - [x] **Additional Syntax Highlighting 1**: Add for C and Devicetree (.dts, .dtsi, .overlay)
 - [ ] **Code Folding**: Collapse/expand code sections  

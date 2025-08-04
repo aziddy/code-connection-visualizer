@@ -49,6 +49,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportSVG = document.getElementById('exportSVG') as HTMLButtonElement;
     const exportPDF = document.getElementById('exportPDF') as HTMLButtonElement;
 
+    // Pane management elements
+    const addPaneBtn = document.getElementById('addPane') as HTMLButtonElement;
+    const layoutModeSelect = document.getElementById('layoutModeSelect') as HTMLSelectElement;
+    const paneList = document.getElementById('paneList') as HTMLDivElement;
+
     if (!canvas) {
         console.error('Canvas element not found');
         return;
@@ -63,7 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
         lineColorPicker, lineStyleSelect, connectionLabel,
         connectionEditor, connectionInfo, editConnectionColor, editConnectionStyle,
         editConnectionWidth, editConnectionWidthLabel, editConnectionLabel,
-        applyConnectionChanges, deleteConnection, exportFilename, exportPNG, exportSVG, exportPDF
+        applyConnectionChanges, deleteConnection, exportFilename, exportPNG, exportSVG, exportPDF,
+        addPaneBtn, layoutModeSelect, paneList
     };
     
     for (const [name, element] of Object.entries(elements)) {
@@ -98,6 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial resize - delay to ensure DOM layout is complete
     setTimeout(() => {
         resizeCanvas();
+        // Initialize pane list
+        updatePaneList();
         // Load initial files after canvas is properly sized
         loadAllFilesBtn.click();
     }, 200);
@@ -244,6 +252,79 @@ document.addEventListener('DOMContentLoaded', () => {
         const rect = canvas.getBoundingClientRect();
         visualizer.showExportPrompt(rect.width / 2, rect.height / 2);
     });
+
+    // Pane management event handlers
+    addPaneBtn.addEventListener('click', () => {
+        visualizer.createEmptyPane();
+        updatePaneList();
+    });
+
+    layoutModeSelect.addEventListener('change', () => {
+        const mode = layoutModeSelect.value as any;
+        visualizer.setLayoutMode(mode);
+    });
+
+    // Listen for pane changes
+    canvas.addEventListener('panesChanged', () => {
+        updatePaneList();
+    });
+
+    function updatePaneList(): void {
+        const panes = visualizer.getPanes();
+        paneList.innerHTML = '';
+
+        panes.forEach((pane) => {
+            const paneItem = document.createElement('div');
+            paneItem.style.cssText = `
+                padding: 5px;
+                margin: 2px 0;
+                background-color: ${pane.isActive ? '#4e4e4e' : '#3c3c3c'};
+                border: 1px solid #5a5a5a;
+                border-radius: 3px;
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 12px;
+            `;
+
+            const paneInfo = document.createElement('span');
+            paneInfo.textContent = pane.title + (pane.fileId ? ` (${pane.fileId})` : ' (empty)');
+            paneInfo.style.cssText = `
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            `;
+
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '×';
+            closeBtn.style.cssText = `
+                background: none;
+                border: none;
+                color: #cccccc;
+                cursor: pointer;
+                padding: 0 5px;
+                font-size: 16px;
+            `;
+
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                visualizer.closePane(pane.id);
+            });
+
+            paneItem.addEventListener('click', () => {
+                visualizer.setActivePane(pane.id);
+            });
+
+            paneItem.appendChild(paneInfo);
+            if (panes.length > 1) {
+                paneItem.appendChild(closeBtn);
+            }
+            
+            paneList.appendChild(paneItem);
+        });
+    }
 
     // Context menu support for floating prompts
     canvas.addEventListener('contextmenu', (e) => {

@@ -92,6 +92,26 @@ export interface FileLayout {
     visible: boolean;
 }
 
+// Dynamic pane system types
+export interface EditorPane {
+    id: string;
+    fileId: string | null;
+    order: number;
+    title: string;
+    isActive: boolean;
+}
+
+export interface PaneLayout {
+    paneId: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    tabHeight: number;
+}
+
+export type LayoutMode = 'single' | 'split-horizontal' | 'split-vertical' | 'grid' | 'auto';
+
 // Renderer state
 export interface RendererState {
     fontSize: number;

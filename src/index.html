@@ -169,7 +169,25 @@
                 <button id="loadAllFiles"
                     style="width: 100%; padding: 8px; margin-bottom: 10px; background-color: #28a745; border: none; color: white; border-radius: 4px; cursor: pointer;">Load All Files</button>
                 <button id="clearAllFiles"
-                    style="width: 100%; padding: 8px; background-color: #dc3545; border: none; color: white; border-radius: 4px; cursor: pointer;">Clear All Files</button>
+                    style="width: 100%; padding: 8px; margin-bottom: 10px; background-color: #dc3545; border: none; color: white; border-radius: 4px; cursor: pointer;">Clear All Files</button>
+            </div>
+
+            <div class="controls">
+                <h3>Pane Management</h3>
+                <button id="addPane"
+                    style="width: 100%; padding: 8px; margin-bottom: 5px; background-color: #17a2b8; border: none; color: white; border-radius: 4px; cursor: pointer;">Add New Pane</button>
+                
+                <select id="layoutModeSelect" style="margin-bottom: 10px;">
+                    <option value="auto">Auto Layout</option>
+                    <option value="single">Single Pane</option>
+                    <option value="split-vertical">Split Vertical</option>
+                    <option value="split-horizontal">Split Horizontal</option>
+                    <option value="grid">Grid Layout</option>
+                </select>
+                
+                <div id="paneList" style="max-height: 200px; overflow-y: auto; border: 1px solid #5a5a5a; border-radius: 4px; padding: 5px; background-color: #3c3c3c;">
+                    <!-- Dynamic pane list will be populated here -->
+                </div>
             </div>
 
             <div class="controls" id="connectionEditor" style="display: none;">
